@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ff7eb6">
+<title>Dudu & Bubu: Love Adventure</title>
+<style>
+  :root { --pink:#ff5f9e; --deep:#632c62; --cream:#fff8f3; --mint:#9df3d0; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; width:100%; height:100%; overflow:hidden; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:#ffd8e8; color:#54234f; }
+  body { display:flex; align-items:center; justify-content:center; }
+  #app { position:relative; width:100%; height:100%; max-width:900px; max-height:1100px; overflow:hidden; background:linear-gradient(#b9eaff 0%,#ffe6f1 65%,#ffe7c7 100%); }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+  .hud { position:absolute; top:0; left:0; right:0; display:flex; align-items:flex-start; justify-content:space-between; padding:calc(12px + env(safe-area-inset-top)) 12px 0; gap:8px; pointer-events:none; }
+  .pill { background:rgba(255,255,255,.86); border:2px solid rgba(255,255,255,.9); box-shadow:0 4px 14px #8e4e7830; border-radius:18px; padding:8px 12px; font-weight:800; font-size:clamp(12px,3.3vw,16px); }
+  #hearts { color:#f13f88; letter-spacing:1px; }
+  .overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; background:linear-gradient(#ffeaf3d9,#fff7f0e8); }
+  .panel { width:min(100%,430px); text-align:center; background:#fffdfb; border:3px solid white; border-radius:28px; padding:24px 20px; box-shadow:0 18px 55px #783d6640; }
+  .logo { font-size:clamp(29px,8vw,48px); line-height:1.03; font-weight:1000; color:#f34c91; letter-spacing:-1.6px; text-shadow:0 3px 0 #ffd0e2; }
+  .subtitle { margin:10px 0 18px; color:#76506f; font-weight:650; }
+  .bear-row { font-size:52px; margin:10px 0 2px; }
+  .btn { display:block; width:100%; border:0; border-radius:17px; padding:14px 18px; margin-top:10px; background:linear-gradient(135deg,#ff5799,#ff8dba); color:white; font-weight:900; font-size:18px; box-shadow:0 5px 0 #d63b7a; cursor:pointer; touch-action:manipulation; }
+  .btn.secondary { background:#f2e8f2; color:#66385f; box-shadow:0 4px 0 #d8c3d7; font-size:14px; }
+  .help { font-size:12px; line-height:1.5; color:#80657b; margin:14px 0 0; }
+  .hidden { display:none !important; }
+  .controls { position:absolute; left:0; right:0; bottom:calc(12px + env(safe-area-inset-bottom)); display:flex; align-items:flex-end; justify-content:space-between; padding:0 16px; pointer-events:none; }
+  .control-group { display:flex; gap:10px; pointer-events:auto; }
+  .control { width:62px; height:62px; border-radius:22px; border:2px solid #ffffffc9; background:#ffffffb8; color:#6c3563; font-size:26px; font-weight:900; box-shadow:0 5px 15px #733f6c25; touch-action:none; user-select:none; }
+  .control.jump { width:76px; height:76px; border-radius:50%; background:#ff6ca7dc; color:white; }
+  .small-note { position:absolute; bottom:calc(96px + env(safe-area-inset-bottom)); width:100%; text-align:center; color:#7a4e72; font-weight:750; font-size:12px; pointer-events:none; text-shadow:0 1px white; }
+  @media (min-width:700px) { .control { width:70px;height:70px; } .control.jump {width:84px;height:84px;} }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="game" aria-label="Dudu and Bubu Love Adventure game"></canvas>
+  <div class="hud hidden" id="hud">
+    <div class="pill">💗 Hearts: <span id="score">0</span></div>
+    <div class="pill">LEVEL <span id="level">1</span></div>
+    <div class="pill" id="hearts">❤️❤️❤️</div>
+  </div>
+  <div class="small-note hidden" id="hint">Collect every heart and reach the pink portal ✨</div>
+  <div class="controls hidden" id="controls">
+    <div class="control-group">
+      <button class="control" id="left" aria-label="Move left">◀</button>
+      <button class="control" id="right" aria-label="Move right">▶</button>
+    </div>
+    <div class="control-group">
+      <button class="control jump" id="jump" aria-label="Jump">↑</button>
+    </div>
+  </div>
+  <div class="overlay" id="menu">
+    <div class="panel">
+      <div class="bear-row">🐻‍❄️ 💕 🧸</div>
+      <div class="logo">Dudu & Bubu<br>Love Adventure</div>
+      <div class="subtitle">A tiny journey, a whole lot of love 💖</div>
+      <button class="btn" id="start">▶ START ADVENTURE</button>
+      <button class="btn secondary" id="how">HOW TO PLAY</button>
+      <p class="help">Move with ◀ ▶ and jump with ↑. Collect hearts, avoid thorns, and find the love portal.</p>
+    </div>
+  </div>
+  <div class="overlay hidden" id="message">
+    <div class="panel">
+      <div class="bear-row" id="messageEmoji">💖🐻🧸💖</div>
+      <div class="logo" id="messageTitle">Lovely!</div>
+      <div class="subtitle" id="messageText">You did it!</div>
+      <button class="btn" id="next">CONTINUE 💕</button>
+      <button class="btn secondary" id="restart">PLAY AGAIN</button>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  "use strict";
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const app = document.getElementById('app');
+  const menu = document.getElementById('menu');
+  const message = document.getElementById('message');
+  const hud = document.getElementById('hud');
+  const controls = document.getElementById('controls');
+  const hint = document.getElementById('hint');
+  const scoreEl = document.getElementById('score');
+  const levelEl = document.getElementById('level');
+  const heartsEl = document.getElementById('hearts');
+  let W=0,H=0,dpr=1, running=false, paused=false, last=0, elapsed=0;
+  let level=1, score=0, lives=3, collected=new Set(), particles=[];
+  const keys={left:false,right:false,jump:false};
+  const player={x:70,y:0,w:38,h:48,vx:0,vy:0,onGround:false,face:1,invuln:0};
+  let platforms=[], collectibles=[], thorns=[], portal={x:0,y:0,w:38,h:70}, worldW=1200, cameraX=0;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  function resize(){
+    const r=app.getBoundingClientRect(); dpr=Math.min(window.devicePixelRatio||1,2);
+    W=r.width; H=r.height; canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    if(!running) draw();
+  }
+  window.addEventListener('resize',resize);
+  function buildLevel(n){
+    worldW=1200 + (n-1)*180;
+    const groundY=H-95;
+    platforms=[{x:0,y:groundY,w:300,h:30},{x:360,y:groundY-70,w:190,h:24},{x:610,y:groundY-130,w:180,h:24},{x:850,y:groundY-65,w:180,h:24},{x:1080,y:groundY,w:worldW-1080,h:30}];
+    // keep a forgiving path for smaller screens
+    thorns=[{x:245,y:groundY-23,w:34,h:23},{x:520,y:groundY-93,w:32,h:23},{x:770,y:groundY-153,w:34,h:23},{x:1010,y:groundY-88,w:34,h:23}];
+    collectibles=[
+      {x:150,y:groundY-55,r:13,id:'a'},{x:425,y:groundY-112,r:13,id:'b'},
+      {x:680,y:groundY-174,r:13,id:'c'},{x:920,y:groundY-108,r:13,id:'d'},
+      {x:1130,y:groundY-58,r:13,id:'e'}
+    ];
+    portal={x:worldW-76,y:groundY-70,w:42,h:70};
+    player.x=45; player.y=groundY-player.h; player.vx=0; player.vy=0; player.onGround=true; cameraX=0;
+    collected=new Set();
+  }
+  function rounded(x,y,w,h,r,fill){
+    ctx.fillStyle=fill;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill();
+  }
+  function drawCloud(x,y,s=1){
+    ctx.fillStyle='#ffffffb9';ctx.beginPath();ctx.ellipse(x,y,26*s,13*s,0,0,Math.PI*2);ctx.ellipse(x+20*s,y-9*s,20*s,17*s,0,0,Math.PI*2);ctx.ellipse(x+41*s,y,25*s,12*s,0,0,Math.PI*2);ctx.fill();
+  }
+  function drawBear(x,y,scale,color,cheek='#ff9ab9'){
+    ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
+    // ears and body
+    ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(19,35,17,20,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(7,5,8,0,Math.PI*2);ctx.arc(31,5,8,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ffd2e1';ctx.beginPath();ctx.arc(7,5,4,0,Math.PI*2);ctx.arc(31,5,4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=color;ctx.beginPath();ctx.arc(19,19,21,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff0e9';ctx.beginPath();ctx.ellipse(19,26,12,9,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#4b3444';ctx.beginPath();ctx.arc(12,17,2.2,0,Math.PI*2);ctx.arc(26,17,2.2,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=cheek;ctx.beginPath();ctx.arc(7,23,4,0,Math.PI*2);ctx.arc(31,23,4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#6b3c50';ctx.beginPath();ctx.arc(19,23,2.5,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#6b3c50';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(19,25,4,0.15,Math.PI-0.15);ctx.stroke();
+    ctx.restore();
+  }
+  function drawHeart(x,y,size,color='#ff4e93'){
+    ctx.save();ctx.translate(x,y);ctx.scale(size/20,size/20);ctx.fillStyle=color;
+    ctx.beginPath();ctx.moveTo(0,7);ctx.bezierCurveTo(-22,-7,-13,-20,0,-9);ctx.bezierCurveTo(13,-20,22,-7,0,7);ctx.fill();ctx.restore();
+  }
+  function draw(){
+    if(!W||!H)return;
+    const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#9de3ff');sky.addColorStop(.66,'#ffe4f0');sky.addColorStop(1,'#fff0d2');
+    ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+    drawCloud((W*.18-(cameraX*.12)% (W+100)+W+100)%(W+100)-40,H*.17,.8);
+    drawCloud((W*.68-(cameraX*.08)%(W+130)+W+130)%(W+130)-50,H*.27,.65);
+    // distant hills
+    ctx.fillStyle='#c2f0d7';ctx.beginPath();ctx.moveTo(0,H-100);for(let x=0;x<=W+20;x+=20)ctx.lineTo(x,H-100-Math.sin((x+cameraX*.12)/100)*18);ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
+    ctx.save();ctx.translate(-cameraX,0);
+    // ground platforms
+    platforms.forEach(p=>{
+      rounded(p.x,p.y,p.w,p.h,10,'#8cdbab');
+      rounded(p.x,p.y,p.w,8,5,'#4cbf88');
+      for(let x=p.x+14;x<p.x+p.w;x+=32){ctx.fillStyle='#5bc58f';ctx.beginPath();ctx.ellipse(x,p.y+14,4,2,0,0,Math.PI*2);ctx.fill();}
+    });
+    thorns.forEach(t=>{
+      ctx.fillStyle='#8d6a9e';ctx.beginPath();ctx.moveTo(t.x,t.y+t.h);ctx.lineTo(t.x+t.w*.25,t.y);ctx.lineTo(t.x+t.w*.5,t.y+t.h);ctx.lineTo(t.x+t.w*.75,t.y);ctx.lineTo(t.x+t.w,t.y+t.h);ctx.closePath();ctx.fill();
+    });
+    collectibles.forEach(c=>{if(!collected.has(c.id)){drawHeart(c.x,c.y,25);}});
+    // portal
+    ctx.save();ctx.shadowColor='#ff69ad';ctx.shadowBlur=18;rounded(portal.x,portal.y,portal.w,portal.h,21,'#ff83bd');ctx.restore();
+    ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.beginPath();ctx.arc(portal.x+portal.w/2,portal.y+portal.h/2,13,0,Math.PI*2);ctx.stroke();
+    // player shadow + bear
+    ctx.globalAlpha=player.invuln>0 && Math.floor(elapsed*12)%2===0 ? .35:1;
+    drawBear(player.x,player.y,1,'#f3c6a4');
+    ctx.globalAlpha=1;
+    // tiny sparkle particles
+    particles.forEach(p=>{ctx.globalAlpha=clamp(p.life,0,1);drawHeart(p.x,p.y,12,'#ff6fa9');ctx.globalAlpha=1;});
+    ctx.restore();
+    // progress bar
+    rounded(12,H-12,Math.max(80,W-24),4,3,'#ffffff80');
+    rounded(12,H-12,Math.max(8,(W-24)*clamp(player.x/(worldW-50),0,1)),4,3,'#ff5f9e');
+  }
+  function setUI(on){hud.classList.toggle('hidden',!on);controls.classList.toggle('hidden',!on);hint.classList.toggle('hidden',!on);}
+  function startGame(){level=1;score=0;lives=3;elapsed=0;particles=[];buildLevel(level);menu.classList.add('hidden');message.classList.add('hidden');setUI(true);running=true;paused=false;last=performance.now();scoreEl.textContent=score;levelEl.textContent=level;updateHearts();requestAnimationFrame(loop);}
+  function updateHearts(){heartsEl.textContent='❤️'.repeat(lives)+'🤍'.repeat(3-lives);}
+  function endMessage(title,text,emoji,button='CONTINUE 💕'){
+    running=false;message.classList.remove('hidden');document.getElementById('messageTitle').textContent=title;document.getElementById('messageText').textContent=text;document.getElementById('messageEmoji').textContent=emoji;document.getElementById('next').textContent=button;
+  }
+  function loseLife(){
+    if(player.invuln>0)return;
+    lives--;updateHearts();
+    if(lives<=0){endMessage('Oh no! 💗','The thorns got you. Your love adventure can start again!','🐻‍❄️💞🧸','TRY AGAIN');return;}
+    player.invuln=1.4;player.vy=-330;player.x=Math.max(35,player.x-45);
+  }
+  function update(dt){
+    elapsed+=dt;player.invuln=Math.max(0,player.invuln-dt);
+    const speed=245;
+    player.vx=(keys.right?speed:0)-(keys.left?speed:0);
+    if(player.vx)player.face=Math.sign(player.vx);
+    player.x=clamp(player.x+player.vx*dt,0,worldW-player.w);
+    if(keys.jump&&player.onGround){player.vy=-590;player.onGround=false;}
+    player.vy+=1500*dt;player.y+=player.vy*dt;player.onGround=false;
+    for(const p of platforms){
+      if(player.vy>=0 && player.x+player.w-5>p.x && player.x+5<p.x+p.w &&
+         player.y+player.h>=p.y && player.y+player.h-player.vy*dt<=p.y+10){
+        player.y=p.y-player.h;player.vy=0;player.onGround=true;
+      }
+    }
+    if(player.y>H+80){loseLife();const ground=platforms[0];player.y=ground.y-player.h;}
+    for(const t of thorns){
+      if(player.x+player.w-7>t.x&&player.x+7<t.x+t.w&&player.y+player.h>t.y+4&&player.y+player.h<t.y+t.h+player.h)loseLife();
+    }
+    collectibles.forEach(c=>{
+      if(!collected.has(c.id)&&Math.abs((player.x+player.w/2)-c.x)<30&&Math.abs((player.y+player.h/2)-c.y)<36){
+        collected.add(c.id);score+=10;scoreEl.textContent=score;
+        for(let i=0;i<5;i++)particles.push({x:c.x+(Math.random()-.5)*25,y:c.y,life:1});
+      }
+    });
+    particles.forEach(p=>{p.y-=50*dt;p.life-=dt;});particles=particles.filter(p=>p.life>0);
+    cameraX=clamp(player.x-W*.32,0,worldW-W);
+    if(player.x+player.w>portal.x&&player.y+player.h>portal.y&&player.y<portal.y+portal.h){
+      if(collected.size===collectibles.length){endMessage('Love wins! 💖','Level complete! You collected every heart. Ready for the next adventure?','🐻‍❄️💕🧸','NEXT LEVEL');}
+      else {hint.textContent='Collect all the hearts first! 💗';}
+    }
+  }
+  function loop(now){
+    if(!running)return;
+    const dt=Math.min((now-last)/1000,.033);last=now;update(dt);draw();
+    if(running)requestAnimationFrame(loop);
+  }
+  function bindHold(id,key){
+    const el=document.getElementById(id);
+    const down=e=>{e.preventDefault();keys[key]=true;try{el.setPointerCapture(e.pointerId);}catch(_){}};
+    const up=e=>{e.preventDefault();keys[key]=false;};
+    el.addEventListener('pointerdown',down);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,up));
+  }
+  bindHold('left','left');bindHold('right','right');bindHold('jump','jump');
+  window.addEventListener('keydown',e=>{
+    if(['ArrowLeft','a','A'].includes(e.key)){keys.left=true;e.preventDefault();}
+    if(['ArrowRight','d','D'].includes(e.key)){keys.right=true;e.preventDefault();}
+    if(['ArrowUp',' ','w','W'].includes(e.key)){keys.jump=true;e.preventDefault();}
+  });
+  window.addEventListener('keyup',e=>{
+    if(['ArrowLeft','a','A'].includes(e.key))keys.left=false;
+    if(['ArrowRight','d','D'].includes(e.key))keys.right=false;
+    if(['ArrowUp',' ','w','W'].includes(e.key))keys.jump=false;
+  });
+  document.getElementById('start').addEventListener('click',startGame);
+  document.getElementById('how').addEventListener('click',()=>alert('Move with ◀ ▶. Press and hold ↑ to jump. Collect all 5 hearts on each level. Avoid purple thorns and enter the pink portal!'));
+  document.getElementById('next').addEventListener('click',()=>{
+    if(lives<=0){startGame();return;}
+    level++;score=score;buildLevel(level);levelEl.textContent=level;message.classList.add('hidden');running=true;last=performance.now();requestAnimationFrame(loop);
+  });
+  document.getElementById('restart').addEventListener('click',startGame);
+  resize();draw();
+})();
+</script>
+</body>
+</html>
